@@ -24,10 +24,10 @@ def swish(x):
 
 ## radial basis function to embed distances
 class rbf_emb(nn.Module):
-    def __init__(self, num_rbf, rbound_upper, rbf_trainable=False):
+    def __init__(self, num_rbf, soft_cutoff_upper, rbf_trainable=False):
         super().__init__()
-        self.rbound_upper = rbound_upper
-        self.rbound_lower = 0
+        self.soft_cutoff_upper = soft_cutoff_upper
+        self.soft_cutoff_lower = 0
         self.num_rbf = num_rbf
         self.rbf_trainable = rbf_trainable
         means, betas = self._initial_params()
@@ -36,8 +36,8 @@ class rbf_emb(nn.Module):
         self.register_buffer("betas", betas)
 
     def _initial_params(self):
-        start_value = torch.exp(torch.scalar_tensor(-self.rbound_upper))
-        end_value = torch.exp(torch.scalar_tensor(-self.rbound_lower))
+        start_value = torch.exp(torch.scalar_tensor(-self.soft_cutoff_upper))
+        end_value = torch.exp(torch.scalar_tensor(-self.soft_cutoff_lower))
         means = torch.linspace(start_value, end_value, self.num_rbf)
         betas = torch.tensor([(2 / self.num_rbf * (end_value - start_value))**-2] *
                              self.num_rbf)
@@ -50,10 +50,10 @@ class rbf_emb(nn.Module):
 
     def forward(self, dist):
         dist=dist.unsqueeze(-1)
-        rbounds = 0.5 * \
-                  (torch.cos(dist * pi / self.rbound_upper) + 1.0)
-        rbounds = rbounds * (dist < self.rbound_upper).float()
-        return rbounds*torch.exp(-self.betas * torch.square((torch.exp(-dist) - self.means)))
+        soft_cutoff = 0.5 * \
+                  (torch.cos(dist * pi / self.soft_cutoff_upper) + 1.0)
+        soft_cutoff = soft_cutoff * (dist < self.soft_cutoff_upper).float()
+        return soft_cutoff*torch.exp(-self.betas * torch.square((torch.exp(-dist) - self.means)))
 
 
 class NeighborEmb(MessagePassing):
@@ -405,8 +405,8 @@ class LEFTNet(torch.nn.Module):
         # radial_emb shape: (num_edges, num_radial), radial_hidden shape: (num_edges, hidden_channels)
         radial_emb = self.radial_emb(dist)	
         radial_hidden = self.radial_lin(radial_emb)	
-        rbounds = 0.5 * (torch.cos(dist * pi / self.cutoff) + 1.0)
-        radial_hidden = rbounds.unsqueeze(-1) * radial_hidden
+        soft_cutoff = 0.5 * (torch.cos(dist * pi / self.cutoff) + 1.0)
+        radial_hidden = soft_cutoff.unsqueeze(-1) * radial_hidden
 
         # init invariant node features
         # shape: (num_nodes, hidden_channels)
@@ -448,13 +448,13 @@ class LEFTNet(torch.nn.Module):
         scalar4 = (self.lin(torch.permute(scalrization2, (0, 2, 1))) + torch.permute(scalrization2, (0, 2, 1))[:, :,
                                                                         0].unsqueeze(2)).squeeze(-1)
         
-        edge_weight = torch.cat((scalar3, scalar4), dim=-1) * rbounds.unsqueeze(-1)
-        edge_weight = torch.cat((edge_weight, radial_hidden, radial_emb), dim=-1)
+        A_i_j = torch.cat((scalar3, scalar4), dim=-1) * soft_cutoff.unsqueeze(-1)
+        A_i_j = torch.cat((A_i_j, radial_hidden, radial_emb), dim=-1)
         
         for i in range(self.num_layers):
             # equivariant message passing
             ds, dvec = self.message_layers[i](
-                s, vec, edge_index, radial_emb, edge_weight, edge_diff
+                s, vec, edge_index, radial_emb, A_i_j, edge_diff
             )
 
             s = s + ds
