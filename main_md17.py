@@ -11,7 +11,6 @@ from torch.autograd import grad
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import StepLR,ReduceLROnPlateau,CosineAnnealingLR
 from tqdm import tqdm
-import numpy as np
 
 
 def run(device, train_dataset, valid_dataset, test_dataset, model, loss_func, eval_steps=50, eval_start=0,
@@ -165,7 +164,7 @@ parser.add_argument('--lr_decay_step_size', type=int, default=180)
 
 parser.add_argument('--p', type=int, default=1000)
 
-parser.add_argument('--save_dir', type=str, default='models/')
+parser.add_argument('--save_dir', type=str, default='')
 
 args = parser.parse_args()
 print(args)

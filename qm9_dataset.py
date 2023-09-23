@@ -102,7 +102,7 @@ class QM93D(InMemoryDataset):
 
             ####################################################################################################
 
-            data = Data(pos=R_i, z=z_i, pos_c=R_i_c, 
+            data = Data(pos=R_i, z=z_i, posc=R_i_c, 
             y=y_i[0], mu=y_i[0], alpha=y_i[1], homo=y_i[2], lumo=y_i[3], gap=y_i[4], r2=y_i[5], zpve=y_i[6], U0=y_i[7], U=y_i[8], H=y_i[9], G=y_i[10], Cv=y_i[11])
 
             data_list.append(data)
@@ -113,10 +113,6 @@ class QM93D(InMemoryDataset):
             data_list = [self.pre_transform(data) for data in data_list]
         
         data, slices = self.collate(data_list)
-
-        # source_idx, target_idx = data.edge_index
-        # data.dist = (data.pos[target_idx] - data.pos[source_idx]).pow(2).sum(dim=-1).sqrt()
-        # slices.dist = slices.edge_index
 
         print('Saving...')
         torch.save((data, slices), self.processed_paths[0])

@@ -130,7 +130,7 @@ parser.add_argument('--lr', type=float, default=0.0005)
 parser.add_argument('--lr_decay_factor', type=float, default=0.5)
 parser.add_argument('--lr_decay_step_size', type=int, default=150)
 parser.add_argument('--weight_decay', type=float, default=0)
-parser.add_argument('--save_dir', type=str, default='models/')
+parser.add_argument('--save_dir', type=str, default='')
 parser.add_argument('--disable_tqdm', default=False, action='store_true')
 parser.add_argument('--scheduler', type=str, default='steplr')
 parser.add_argument('--norm_label', default=False, action='store_true')
@@ -153,8 +153,8 @@ if args.norm_label:
     y_std = torch.std(train_dataset.data.y).item()
     print('y_mean, y_std:', y_mean, y_std)
 else:
-    y_mean = None
-    y_std = None
+    y_mean = 0
+    y_std = 1
 
 model = LEFTNet(pos_require_grad=False, cutoff=args.cutoff, num_layers=args.num_layers,
             hidden_channels=args.hidden_channels, num_radial=args.num_radial, y_mean=y_mean, y_std=y_std)

@@ -366,6 +366,8 @@ class LEFTNet(torch.nn.Module):
             self.FTEs.append(FTE(hidden_channels))
 
         self.last_layer = nn.Linear(hidden_channels, 1)
+        if self.pos_require_grad:
+            self.out_forces = EquiOutput(hidden_channels)
         
         # for node-wise frame
         self.mean_neighbor_pos = aggregate_pos(aggr='mean')
@@ -389,7 +391,7 @@ class LEFTNet(torch.nn.Module):
                 layer.reset_parameters()
 
     def forward(self, batch_data):
-        z, pos, batch = batch_data.z, batch_data.pos, batch_data.batch
+        z, pos, batch = batch_data.z, batch_data.posc, batch_data.batch
         if self.pos_require_grad:
             pos.requires_grad_()
         
@@ -465,9 +467,13 @@ class LEFTNet(torch.nn.Module):
             s = s + ds
             vec = vec + dvec
 
+        if self.pos_require_grad:
+            forces = self.out_forces(s, vec)
         s = self.last_layer(s)
         s = scatter(s, batch, dim=0)
         s = s * self.y_std + self.y_mean
+        if self.pos_require_grad:
+            return s, forces
         return s
 
     @property
