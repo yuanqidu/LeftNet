@@ -12,7 +12,7 @@ Weitao Du, Yuanqi Du, Limei Wang, Dieqiao Feng, Guifeng Wang, Shuiwang Ji, Carla
 
 ## From Local to Global
 <p align="center">
-<img src="https://github.com/yuanqidu/LeftNet/blob/main/assets/global.png" width="200" class="center" alt="global"/>
+<img src="https://github.com/yuanqidu/LeftNet/blob/main/assets/global.png" width="250" class="center" alt="global"/>
     <br/>
 </p>
 
