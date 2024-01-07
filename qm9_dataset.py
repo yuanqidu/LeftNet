@@ -1,11 +1,24 @@
+import os
 import os.path as osp
 import numpy as np
 from tqdm import tqdm
 import torch
 from sklearn.utils import shuffle
 
-from torch_geometric.data import InMemoryDataset, download_url
-from torch_geometric.data import Data, DataLoader
+from rdkit import Chem
+
+from torch_geometric.data import Data, DataLoader, InMemoryDataset, download_url, extract_zip
+
+HAR2EV = 27.211386246
+KCALMOL2EV = 0.04336414
+
+conversion = torch.tensor([
+    1., 1., HAR2EV, HAR2EV, HAR2EV, 1., HAR2EV, HAR2EV, HAR2EV, HAR2EV, HAR2EV,
+    1., KCALMOL2EV, KCALMOL2EV, KCALMOL2EV, KCALMOL2EV, 1., 1., 1.
+])
+
+
+types = {'H': 0, 'C': 1, 'N': 2, 'O': 3, 'F': 4}
 
 
 class QM93D(InMemoryDataset):
@@ -17,8 +30,7 @@ class QM93D(InMemoryDataset):
         Each molecule includes complete spatial information for the single low energy conformation of the atoms in the molecule.
 
         .. note::
-            We used the processed data in `DimeNet <https://github.com/klicperajo/dimenet/tree/master/data>`_, wihch includes spatial information and type for each atom.
-            You can also use `QM9 in Pytorch Geometric <https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/datasets/qm9.html#QM9>`_.
+            Based on the code of `QM9 in Pytorch Geometric <https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/datasets/qm9.html#QM9>`_.
 
     
         Args:
@@ -58,52 +70,71 @@ class QM93D(InMemoryDataset):
     """
     def __init__(self, root = 'dataset/', transform = None, pre_transform = None, pre_filter = None):
 
-        self.url = 'https://github.com/klicperajo/dimenet/raw/master/data/qm9_eV.npz'
+        self.raw_url = ('https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/'
+               'molnet_publish/qm9.zip')
+        self.raw_url2 = 'https://ndownloader.figshare.com/files/3195404'
         self.folder = osp.join(root, 'qm9')
 
         super(QM93D, self).__init__(self.folder, transform, pre_transform, pre_filter)
 
         self.data, self.slices = torch.load(self.processed_paths[0])
 
-        
-
     @property
     def raw_file_names(self):
-        return 'qm9_eV.npz'
+        return ['gdb9.sdf', 'gdb9.sdf.csv', 'uncharacterized.txt']
 
     @property
     def processed_file_names(self):
         return 'qm9_pyg.pt'
 
     def download(self):
-        download_url(self.url, self.raw_dir)
+        file_path = download_url(self.raw_url, self.raw_dir)
+        extract_zip(file_path, self.raw_dir)
+        os.unlink(file_path)
+
+        file_path = download_url(self.raw_url2, self.raw_dir)
+        os.rename(osp.join(self.raw_dir, '3195404'),
+                    osp.join(self.raw_dir, 'uncharacterized.txt'))
 
     def process(self):
         
-        data = np.load(osp.join(self.raw_dir, self.raw_file_names))
+        with open(self.raw_paths[1], 'r') as f:
+            target = [[float(x) for x in line.split(',')[1:20]]
+                      for line in f.read().split('\n')[1:-1]]
+            y = torch.tensor(target, dtype=torch.float)
+            y = torch.cat([y[:, 3:], y[:, :3]], dim=-1)
+            y = y * conversion.view(1, -1)
 
-        R = data['R']
-        Z = data['Z']
-        N = data['N']
-        split = np.cumsum(N)
-        R = np.split(R, split)
-        Z = np.split(Z,split)
-        target = {}
-        for name in ['mu', 'alpha', 'homo', 'lumo', 'gap', 'r2', 'zpve','U0', 'U', 'H', 'G', 'Cv']:
-            target[name] = np.expand_dims(data[name],axis=-1)
-        # y = np.expand_dims([data[name] for name in ['mu', 'alpha', 'homo', 'lumo', 'gap', 'r2', 'zpve','U0', 'U', 'H', 'G', 'Cv']], axis=-1)
+        with open(self.raw_paths[2], 'r') as f:
+            skip = [int(x.split()[0]) - 1 for x in f.read().split('\n')[9:-2]]
+
+        suppl = Chem.SDMolSupplier(self.raw_paths[0], removeHs=False,
+                                   sanitize=False)
 
         data_list = []
-        for i in tqdm(range(len(N))):
-            R_i = torch.tensor(R[i],dtype=torch.float32)
-            z_i = torch.tensor(Z[i],dtype=torch.int64)
-            R_i_c = R_i - R_i.mean(dim=0)
-            y_i = [torch.tensor(target[name][i],dtype=torch.float32) for name in ['mu', 'alpha', 'homo', 'lumo', 'gap', 'r2', 'zpve','U0', 'U', 'H', 'G', 'Cv']]
+        for i, mol in enumerate(tqdm(suppl)):
+            if i in skip:
+                continue
 
-            ####################################################################################################
+            conf = mol.GetConformer()
+            pos = conf.GetPositions()
+            pos = torch.tensor(pos, dtype=torch.float)
+            posc = pos - pos.mean(dim=0)
 
-            data = Data(pos=R_i, z=z_i, posc=R_i_c, 
-            y=y_i[0], mu=y_i[0], alpha=y_i[1], homo=y_i[2], lumo=y_i[3], gap=y_i[4], r2=y_i[5], zpve=y_i[6], U0=y_i[7], U=y_i[8], H=y_i[9], G=y_i[10], Cv=y_i[11])
+            atomic_number = []
+            
+            for atom in mol.GetAtoms():
+                atomic_number.append(atom.GetAtomicNum())
+                
+            z = torch.tensor(atomic_number, dtype=torch.long)
+
+            data = Data(
+                z=z,
+                pos=pos,
+                posc=posc,
+                y=y[i].unsqueeze(0),
+                mu=y[i][0], alpha=y[i][1], homo=y[i][2], lumo=y[i][3], gap=y[i][4], r2=y[i][5], zpve=y[i][6], U0=y[i][7], U=y[i][12], H=y[i][13], G=y[i][14], Cv=y[i][15]
+            )
 
             data_list.append(data)
 
