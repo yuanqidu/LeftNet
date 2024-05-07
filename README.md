@@ -46,13 +46,14 @@ python main_md17.py --device 0 --name $name
 
 ## Citation
 ```
-@article{du2023new,
+@article{du2024new,
   title={A new perspective on building efficient and expressive 3D equivariant graph neural networks},
-  author={Du, Weitao and Du, Yuanqi and Wang, Limei and Feng, Dieqiao and Wang, Guifeng and Ji, Shuiwang and Gomes, Carla and Ma, Zhi-Ming},
-  journal={arXiv preprint arXiv:2304.04757},
+  author={Du, Yuanqi and Wang, Limei and Feng, Dieqiao and Wang, Guifeng and Ji, Shuiwang and Gomes, Carla P and Ma, Zhi-Ming and others},
+  journal={Advances in Neural Information Processing Systems},
+  volume={36},
   year={2023}
 }
 ```
 
 ## Acknowledgments
-
+We acknowledge [DIG](https://github.com/divelab/DIG) library for adapting the training pipeline on QM9 and MD17.
