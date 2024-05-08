@@ -38,9 +38,9 @@ python main_qm9.py --device $device --target $target
 ```
 ### MD17
 ```python
-device=9
+device=0
 name='aspirin' #aspirin, benzene2017, ethanol, malonaldehyde, naphthalene, salicylic, toluene, uracil
-python main_md17.py --device 0 --name $name
+python main_md17.py --device $device --name $name
 ``` 
 
 
